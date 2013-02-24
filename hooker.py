@@ -1,0 +1,344 @@
+#!/usr/bin/env python
+
+# ===================================================
+#                   iOS Hooker
+# ===================================================
+
+import os
+import sys
+import platform
+import argparse
+
+if platform.system().lower() in ['linux', 'darwin']:
+    INFO = "\033[1m\033[36m[*]\033[0m "
+    WARN = "\033[1m\033[31m[!]\033[0m "
+else:
+    INFO = "[*] "
+    WARN = "[!] "
+
+KNOWN_TYPES = [
+    'id', 'NSObject', 'char', 'int', 'unsigned', 'double', 'float', 'long', 'BOOL',
+    'NSAffineTransform','NSAppleEventDescriptor','NSAppleEventManager','NSAppleScript',
+    'NSArchiver','NSArray','NSAssertionHandler','NSAttributedString','NSAutoreleasePool',
+    'NSBlockOperation','NSBundle','NSCache','NSCachedURLResponse','NSCalendar','NSCharacterSet',
+    'NSClassDescription','NSCloneCommand','NSCloseCommand','NSCoder','NSComparisonPredicate',
+    'NSCompoundPredicate','NSCondition','NSConditionLock','NSConnection','NSCountCommand',
+    'NSCountedSet','NSCreateCommand','NSData','NSDataDetector','NSDate','NSDateComponents',
+    'NSDateFormatter','NSDecimalNumber','NSDecimalNumberHandler','NSDeleteCommand','NSDictionary',
+    'NSDirectoryEnumerator','NSDistantObject','NSDistantObjectRequest','NSDistributedLock',
+    'NSDistributedNotificationCenter','NSEnumerator','NSError','NSException','NSExistsCommand',
+    'NSExpression','NSFileCoordinator','NSFileHandle','NSFileManager','NSFileVersion','NSFileWrapper',
+    'NSFormatter','NSGarbageCollector','NSGetCommand','NSHashTable','NSHost','NSHTTPCookie',
+    'NSHTTPCookieStorage','NSHTTPURLResponse','NSIndexPath','NSIndexSet','NSIndexSpecifier','NSInputStream',
+    'NSInvocation','NSInvocationOperation','NSKeyedArchiver','NSKeyedUnarchiver','NSLinguisticTagger',
+    'NSLocale','NSLock','NSLogicalTest','NSMachBootstrapServer','NSMachPort','NSMapTable','NSMessagePort',
+    'NSMessagePortNameServer','NSMetadataItem','NSMetadataQuery','NSMetadataQueryAttributeValueTuple',
+    'NSMetadataQueryResultGroup','NSMethodSignature','NSMiddleSpecifier','NSMoveCommand','NSMutableArray',
+    'NSMutableAttributedString','NSMutableCharacterSet','NSMutableData','NSMutableDictionary',
+    'NSMutableIndexSet','NSMutableOrderedSet','NSMutableSet','NSMutableString','NSMutableURLRequest',
+    'NSNameSpecifier','NSNetService','NSNetServiceBrowser','NSNotification','NSNotificationCenter',
+    'NSNotificationQueue','NSNull','NSNumber','NSNumberFormatter','NSObject','NSOperation','NSOperationQueue',
+    'NSOrderedSet','NSOrthography','NSOutputStream','NSPipe','NSPointerArray','NSPointerFunctions','NSPort',
+    'NSPortCoder','NSPortMessage','NSPortNameServer','NSPositionalSpecifier','NSPredicate','NSProcessInfo',
+    'NSPropertyListSerialization','NSPropertySpecifier','NSProtocolChecker','NSProxy','NSQuitCommand',
+    'NSRandomSpecifier','NSRangeSpecifier','NSRecursiveLock','NSRegularExpression','NSRelativeSpecifier',
+    'NSRunLoop','NSScanner','NSScriptClassDescription','NSScriptCoercionHandler','NSScriptCommand',
+    'NSScriptCommandDescription','NSScriptExecutionContext','NSScriptObjectSpecifier','NSScriptSuiteRegistry',
+    'NSScriptWhoseTest','NSSet','NSSetCommand','NSSocketPort','NSSocketPortNameServer','NSSortDescriptor',
+    'NSSpecifierTest','NSSpellServer','NSStream','NSString','NSTask','NSTextCheckingResult','NSThread',
+    'NSTimer','NSTimeZone','NSUbiquitousKeyValueStore','NSUnarchiver','NSUndoManager','NSUniqueIDSpecifier',
+    'NSURL','NSURLAuthenticationChallenge','NSURLCache','NSURLConnection','NSURLCredential','NSURLCredentialStorage',
+    'NSURLDownload','NSURLHandle','NSURLProtectionSpace','NSURLProtocol','NSURLRequest','NSURLResponse',
+    'NSUserAppleScriptTask','NSUserAutomatorTask','NSUserDefaults','NSUserNotification','NSUserNotificationCenter',
+    'NSUserScriptTask','NSUserUnixTask','NSUUID','NSValue','NSValueTransformer','NSWhoseSpecifier','NSXMLDocument',
+    'NSXMLDTD','NSXMLDTDNode','NSXMLElement','NSXMLNode','NSXMLParser','NSXPCConnection','NSXPCInterface',
+    'NSXPCListener','NSXPCListenerEndpoint','NSCoding','NSComparisonMethods','NSConnectionDelegate','NSCopying',
+    'NSDecimalNumberBehaviors','NSErrorRecoveryAttempting','NSFastEnumeration','NSFileManagerDelegate',
+    'NSFilePresenter','NSKeyedArchiverDelegate','NSKeyedUnarchiverDelegate','NSKeyValueCoding','NSKeyValueObserving',
+    'NSLocking','NSMachPortDelegate','NSMetadataQueryDelegate','NSMutableCopying','NSNetServiceBrowserDelegate',
+    'NSNetServiceDelegate','NSObject','NSPortDelegate','NSScriptingComparisonMethods','NSScriptKeyValueCoding',
+    'NSScriptObjectSpecifiers','NSSecureCoding','NSSpellServerDelegate','NSStreamDelegate',
+    'NSURLAuthenticationChallengeSender','NSURLConnectionDataDelegate','NSURLConnectionDelegate',
+    'NSURLConnectionDelegate','NSURLHandleClient','NSURLProtocolClient','NSUserNotificationCenterDelegate',
+    'NSXMLParserDelegate','NSXPCListenerDelegate','NSXPCProxyCreating',
+]
+
+
+class ObjcType(object):
+    
+    def __init__(self, name, pointer=False):
+        self.class_name = name
+        self.is_pointer = pointer
+    
+    def is_known(self):
+        return self.class_name in KNOWN_TYPES
+    
+    def __str__(self):
+        return self.class_name+"*" if self.is_pointer else self.class_name
+
+
+class ObjcMethod(object):
+    
+    def __init__(self, name, ret, arguments, static=False):
+        self.method_name = name
+        self.arguments = arguments
+        self.return_type = ret
+        self.is_static = static
+
+    def __str__(self):
+        name = "(%s) " % str(self.return_type)
+        name = "+"+name if self.is_static else "-"+name
+        return name + self.method_name + self.arguments
+
+
+class ObjcHeader(object):
+    
+    def __init__(self, file_path, unknowns=True, verbose=False):
+        self.file_path = os.path.abspath(file_path)
+        self.file_name = os.path.basename(self.file_path)
+        self.class_fp = open(self.file_path, 'r')
+        self.source_code = self.class_fp.read()
+        self.verbose = verbose
+        self.drop_unknowns = unknowns
+        self._class_name = None
+        self._hook_count = 0
+    
+    @property
+    def class_name(self):
+        ''' Get class name from source code '''
+        if self._class_name is not None:
+            return self._class_name
+        else:
+            for line in self.source_code.split('\n'):
+                if line.startswith('@interface'):
+                    class_name = line.split(' ')[1]
+                    if self.verbose:
+                        sys.stdout.write(INFO + "Found class: %s\n" % class_name)
+                    self._class_name = class_name
+                    return self._class_name
+            raise ValueError("Invalid header syntax, no class name found")
+    
+    @property
+    def class_methods(self):
+        ''' Parse source code and return list of class methods '''
+        methods = []
+        for line in self.source_code.split('\n'):
+            if line.startswith('+'):
+                method_name = self.get_method_name(line)
+                if self.verbose:
+                    print(INFO + "Hooking class method: %s" % method_name)
+                ret = self.get_return_type(line)
+                if self.drop_unknowns and not ret.is_known():
+                    if self.verbose:
+                        print(WARN+'Unknown return type; skipping class method %s' % method_name)
+                    continue
+                args = self.get_arguments(line)
+                methods.append(
+                    ObjcMethod(method_name, ret, args, static=True)
+                )
+        return methods
+
+    @property
+    def instance_methods(self):
+        ''' Parse source code and return a list of instance methods '''
+        methods = []
+        for line in self.source_code.split('\n'):
+            if line.startswith('-'):
+                method_name = self.get_method_name(line)
+                if method_name == '.cxx_destruct':
+                    continue
+                if self.verbose:
+                    print(INFO+"Hooking instance method: %s" % method_name)
+                ret = self.get_return_type(line)
+                if self.drop_unknowns and not ret.is_known():
+                    if self.verbose:
+                        print(WARN+'Unknown return type; skipping instance method %s' % method_name)
+                    continue
+                else:
+                    args = self.get_arguments(line)
+                    methods.append(
+                        ObjcMethod(method_name, ret, args,)
+                    )
+        return methods
+    
+    @property
+    def properties(self):
+        ''' Parse source code and return list of class properties '''
+        _properties = []
+        for line in self.source_code.split('\n'):
+            if line.startswith("@property"):
+                name = self.get_property_name(line)
+                property_type = self.get_property_type(line)
+                if self.drop_unknowns and not property_type.is_known():
+                    if self.verbose:
+                        print(WARN+'Unknown return type; skipping property %s' % name)
+                    continue
+                else:
+                    _properties.append(ObjcMethod(name, property_type, '',))
+        return _properties
+
+    def get_method_name(self, line):
+        ''' Get method name from a line of source '''
+        start = line.index(')')
+        if ':' in line:
+            end = line.index(":")
+        else:
+            end = -1
+        return line[start + 1:end]
+    
+    def get_return_type(self, line):
+        ''' Get the return value from a line of source '''
+        ctype = line[:line.index(')') + 1]
+        pointer = '*' in ctype
+        return ObjcType(ctype[2:-1], pointer=pointer)
+    
+    def get_arguments(self, line):
+        ''' Get function arguments from a line of source '''
+        return line[line.index(":"):-1] if ':' in line else ""
+    
+    def get_property_name(self, line):
+        ''' Get a property's name from a line of source '''
+        return line.split(" ")[-1][:-1]
+    
+    def get_property_type(self, line):
+        ''' Get property type from line of source '''
+        start = line.index(")")
+        return ObjcType(line[start + 1:].split(" ")[1])
+
+    def save_hooks(self, output_fp):
+        ''' Parse an entire class header file '''
+        if self.class_name is not None:
+            self.write_header(output_fp)
+            output_fp.write("%"+"hook %s\n\n" % self.class_name)
+            self.write_methods(output_fp, self.properties, "Properties")
+            self.write_methods(output_fp, self.class_methods, "Class Methods")
+            self.write_methods(output_fp, self.instance_methods, "Instance Methods")
+            output_fp.write("%"+"end\n\n\n")
+        elif verbose:
+            print(WARN+"No objective-c class in %s" % class_fp.name)
+
+    def write_header(self, output_fp):
+        ''' Write comment header to output file '''
+        output_fp.write("/*==%s\n" % str("=" * len(self.class_name)))
+        output_fp.write("  %s  \n" % self.class_name)
+        output_fp.write(str("=" * len(self.class_name)) + "==*/\n\n")
+    
+    def write_methods(self, output_fp, methods, comment=None):
+        ''' Write hooks for a list of methods to output file '''
+        if 0 < len(methods):
+            if comment is not None:
+                output_fp.write("/* %s */\n" % comment)
+            for method in methods:
+                self._hook_count += 1
+                output_fp.write("%s {\n" % str(method))
+                output_fp.write("    %"+"log;\n")
+                if 'void' in str(method.return_type):
+                    output_fp.write("    %"+"orig;\n")
+                else:
+                    output_fp.write("    return %"+"orig;\n")
+                output_fp.write("}\n")
+            output_fp.write("\n")
+
+def display_info(msg):
+    sys.stdout.write(chr(27) + '[2K')
+    sys.stdout.write('\r' + INFO + msg)
+    sys.stdout.flush()
+
+def scan_directory(class_dir, prefix, output_fp, next_step, unknowns, verbose):
+    ''' Scan directory and parse header files '''
+    path = os.path.abspath(class_dir)
+    ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
+    if prefix is not None:
+        ls = filter(lambda file_name: file_name.startswith(prefix), ls)
+    if not next_step:
+        ls = filter(lambda file_name: not file_name.startswith('NS'), ls)
+    print(INFO + "Found %s file(s) in target directory" % len(ls))
+    errors = 0
+    total_hooks = 0
+    for index, header_file in enumerate(ls):
+        display_info("Parsing %d of %d files: %s... " % (
+            index + 1, len(ls), header_file[:-2],
+        ))
+        if verbose: sys.stdout.write('\n')
+        try:
+            objc = ObjcHeader(path + '/' + header_file, unknowns, verbose)
+            objc.save_hooks(output_fp)
+            total_hooks += objc._hook_count
+        except ValueError:
+            errors += 1
+            if verbose:
+                print(WARN+"Error: Invalid objective-c header file")
+    display_info("Successfully parsed %d of %d file(s)\n" % (
+        len(ls) - errors, len(ls),
+    ))
+    print(INFO+"Generated %d function hooks" % total_hooks)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Generate hooks for an objc class header file',
+    )
+    parser.add_argument('--version', 
+        action='version', 
+        version='%(prog)s v0.1'
+    )
+    parser.add_argument('--target', '-t',
+        help='file or directory with objc header file(s)',
+        dest='target',
+        required=True,
+    )
+    parser.add_argument('--output', '-o',
+        help='output file with hooks (default: Tweak.xm)',
+        default='Tweak.xm',
+    )
+    parser.add_argument('--next-step', '-n',
+        help='parse and hook NS class files (default: false)',
+        action='store_true',
+        dest='next_step',
+    )
+    parser.add_argument('--verbose', '-v',
+        help='display verbose output (default: false)',
+        action='store_true',
+        dest='verbose',
+    )
+    parser.add_argument('--append', '-a',
+        help='append output file (default: false)',
+        action='store_true',
+        dest='append',
+    )
+    parser.add_argument('--prefix', '-p',
+        help='only hook classes with a given file name prefix (only valid with directory)',
+        dest='prefix',
+        default=None,
+    )
+    parser.add_argument('--unknown-types', '-u',
+        help='create hooks for functions with unknown return types (may cause compiler errors)',
+        action='store_false',
+        dest='unknowns'
+    )
+    args = parser.parse_args()
+    if os.path.exists(args.target):
+        if args.append:
+            output_fp = open(args.output, 'a+')
+        else:
+            output_fp = open(args.output, 'w+')
+        if os.path.isdir(args.target):
+            scan_directory(
+                args.target, args.prefix, output_fp, 
+                next_step=args.next_step,
+                unknowns=args.unknowns,
+                verbose=args.verbose,
+            )
+        else:
+            try:
+                objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
+                objc.save_hooks(output_fp)
+                print(INFO+"Generated %d function hooks" % objc._hook_count)
+            except:
+                print(WARN+"Invalid objective-c header file")
+        output_fp.seek(0)
+        length = len(output_fp.read())
+        output_fp.close()
+        print(INFO+"Hooks written to: "+args.output+" (%d bytes)" % length)
+    else:
+        print(WARN+"File or directory does not exist")
+    
