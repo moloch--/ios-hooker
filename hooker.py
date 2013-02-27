@@ -3,11 +3,15 @@
 # ===================================================
 #                   iOS Hooker
 # ===================================================
+#  I hate objective-c, I wrote this so I could spend 
+#  less time dealing with it's crappy syntax.  
 
 import os
 import sys
 import platform
 import argparse
+
+import logging
 
 if platform.system().lower() in ['linux', 'darwin']:
     INFO = "\033[1m\033[36m[*]\033[0m "
@@ -77,18 +81,82 @@ class ObjcType(object):
         return self.class_name+"*" if self.is_pointer else self.class_name
 
 
+class ObjcArgument(object):
+
+    def __init__(self, class_type, component, external_name=""):
+        self.external_name = external_name
+        self.component = component
+        if class_type.endswith('*'):
+            self.class_type = ObjcType(class_type[:-1], pointer=True)
+        else:
+            self.class_type = ObjcType(class_type)
+
+    def __str__(self):
+        return "%s:(%s) %s" % (
+            self.external_name, str(self.class_type), self.component
+        )
+
+
 class ObjcMethod(object):
     
-    def __init__(self, name, ret, arguments, static=False):
+    def __init__(self, name, static=False):
         self.method_name = name
-        self.arguments = arguments
-        self.return_type = ret
+        self._arguments = []
+        self._return_type = None
         self.is_static = static
+
+    @property
+    def return_type(self):
+        ''' Never return None type '''
+        if self._return_type is None:
+            return ObjcType("void")
+        else:
+            return self._return_type
+
+    @return_type.setter
+    def return_type(self, value):
+        ''' Should already be ObjcType() '''
+        self._return_type = value
+
+    @property
+    def arguments(self):
+        return self._arguments
+
+    @arguments.setter
+    def arguments(self, arguments):
+        '''
+        Objective-c has the dumbest argument syntax of any programming language
+        I've ever encountered so parsing it is a little wonky.  This is a dirty
+        hack that seems works okay.  
+        '''
+        if 0 < len(arguments):
+            args = arguments.split(' ')
+            fixed_args = []
+            for index, arg in enumerate(args):
+                if '(' in arg and ')' in arg:
+                    fixed_args.append(arg)
+                elif '(' in arg and not ')' in arg:
+                    count = 1  # Look forward for closing ')'
+                    while ')' not in arg:
+                        arg += args[index + count]
+                        count += 1
+                        if 5 < count: 
+                            raise ValueError("Invalid syntax")
+                    fixed_args.append(arg)
+            for arg in fixed_args:
+                ext_name, pair = arg.split(":")
+                class_type, component = pair.split(")")
+                method_argument = ObjcArgument(
+                    class_type[1:],
+                    component,
+                    external_name=ext_name
+                )
+                self._arguments.append(method_argument)
 
     def __str__(self):
         name = "(%s) " % str(self.return_type)
         name = "+"+name if self.is_static else "-"+name
-        return name + self.method_name + self.arguments
+        return name + self.method_name + ' '.join([str(arg) for arg in self.arguments])
 
 
 class ObjcHeader(object):
@@ -133,9 +201,10 @@ class ObjcHeader(object):
                         print(WARN+'Unknown return type; skipping class method %s' % method_name)
                     continue
                 args = self.get_arguments(line)
-                methods.append(
-                    ObjcMethod(method_name, ret, args, static=True)
-                )
+                class_method = ObjcMethod(method_name, static=True)
+                class_method.return_type = ret
+                class_method.arguments = args
+                methods.append(class_method)
         return methods
 
     @property
@@ -156,9 +225,10 @@ class ObjcHeader(object):
                     continue
                 else:
                     args = self.get_arguments(line)
-                    methods.append(
-                        ObjcMethod(method_name, ret, args,)
-                    )
+                    instance_method = ObjcMethod(method_name)
+                    instance_method.return_type = ret
+                    instance_method.arguments = args
+                    methods.append(instance_method)
         return methods
     
     @property
@@ -174,7 +244,9 @@ class ObjcHeader(object):
                         print(WARN+'Unknown return type; skipping property %s' % name)
                     continue
                 else:
-                    _properties.append(ObjcMethod(name, property_type, '',))
+                    class_property = ObjcMethod(name)
+                    class_property.return_type = property_type
+                    _properties.append(class_property)
         return _properties
 
     def get_method_name(self, line):
@@ -210,10 +282,15 @@ class ObjcHeader(object):
         if self.class_name is not None:
             self.write_header(output_fp)
             output_fp.write("%"+"hook %s\n\n" % self.class_name)
-            self.write_methods(output_fp, self.properties, "Properties")
-            self.write_methods(output_fp, self.class_methods, "Class Methods")
-            self.write_methods(output_fp, self.instance_methods, "Instance Methods")
-            output_fp.write("%"+"end\n\n\n")
+            try:
+                self.write_methods(output_fp, self.properties, "Properties")
+                self.write_methods(output_fp, self.class_methods, "Class Methods")
+                self.write_methods(output_fp, self.instance_methods, "Instance Methods")
+            except:
+                if not self.verbose: sys.stdout.write('\n')
+                print(WARN+"Error while writing hooks for %s" % self.class_name)
+            finally:
+                output_fp.write("%"+"end\n\n\n")
         elif verbose:
             print(WARN+"No objective-c class in %s" % class_fp.name)
 
@@ -329,12 +406,12 @@ if __name__ == '__main__':
                 verbose=args.verbose,
             )
         else:
-            try:
-                objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
-                objc.save_hooks(output_fp)
-                print(INFO+"Generated %d function hooks" % objc._hook_count)
-            except:
-                print(WARN+"Invalid objective-c header file")
+            #try:
+            objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
+            objc.save_hooks(output_fp)
+            print(INFO+"Generated %d function hooks" % objc._hook_count)
+            #except:
+            #   print(WARN+"Invalid objective-c header file")
         output_fp.seek(0)
         length = len(output_fp.read())
         output_fp.close()
