@@ -1,11 +1,11 @@
 ios-hooker
 ==========
 
-Python scripts to aid in reverse engineering iOS applications
+I'm not a big fan of Objective-C, but I do enjoy hacking on iOS so is a Python script to aid in reverse engineering iOS applications.  It's a hacky Objc header parser, and can automatically generate function hooks based on class dumps.  For best results [class-dump-z](https://code.google.com/p/networkpx/wiki/class_dump_z)
 
 hooker.py
 ==========
-Automatically parse objective-c header files and produce hooks for class methods, instance methods, and class properties.  Compile generated hooks using Theos (https://github.com/DHowett/theos).
+Automatically parse objective-c header files and produce hooks for class methods, instance methods, and class properties.  Compile generated hooks using [Theos](https://github.com/DHowett/theos)
 
 ```
 mdkir header_files
