@@ -3,15 +3,16 @@
 # ===================================================
 #                   iOS Hooker
 # ===================================================
-#  I hate objective-c, I wrote this so I could spend 
-#  less time dealing with it's crappy syntax.  
+#
+#  About: Hacky Objective-c parser for generating 
+#  function hooks automagically.
+#
 
 import os
 import sys
 import platform
 import argparse
 
-import logging
 
 if platform.system().lower() in ['linux', 'darwin']:
     INFO = "\033[1m\033[36m[*]\033[0m "
