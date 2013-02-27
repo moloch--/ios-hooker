@@ -9,6 +9,7 @@
 #
 
 import os
+import re
 import sys
 import platform
 import argparse
@@ -326,7 +327,7 @@ def display_info(msg):
     sys.stdout.write('\r' + INFO + msg)
     sys.stdout.flush()
 
-def scan_directory(class_dir, prefix, output_fp, next_step, unknowns, verbose):
+def scan_directory(class_dir, prefix, output_fp, next_step, unknowns, regex, verbose):
     ''' Scan directory and parse header files '''
     path = os.path.abspath(class_dir)
     ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
@@ -334,6 +335,13 @@ def scan_directory(class_dir, prefix, output_fp, next_step, unknowns, verbose):
         ls = filter(lambda file_name: file_name.startswith(prefix), ls)
     if not next_step:
         ls = filter(lambda file_name: not file_name.startswith('NS'), ls)
+    if regex is not None:
+        try:
+            regular_expression = re.compile(regex)
+        except:
+            print(WARN+"Invalid regular expression")
+            os._exit(1)
+        ls = filter(regular_expression.match, ls)
     print(INFO + "Found %s file(s) in target directory" % len(ls))
     errors = 0
     total_hooks = 0
@@ -395,19 +403,23 @@ if __name__ == '__main__':
     parser.add_argument('--unknown-types', '-u',
         help='create hooks for functions with unknown return types (may cause compiler errors)',
         action='store_false',
-        dest='unknowns'
+        dest='unknowns',
+    )
+    parser.add_argument('--regex', '-r',
+        help='only hook classes with file names that match a given regex (only valid with directory)',
+        dest='regex',
+        default=None,
     )
     args = parser.parse_args()
     if os.path.exists(args.target):
-        if args.append:
-            output_fp = open(args.output, 'a+')
-        else:
-            output_fp = open(args.output, 'w+')
+        mode = 'a+' if args.append else 'w+'
+        output_fp = open(args.output, mode)
         if os.path.isdir(args.target):
             scan_directory(
                 args.target, args.prefix, output_fp, 
                 next_step=args.next_step,
                 unknowns=args.unknowns,
+                regex=args.regex,
                 verbose=args.verbose,
             )
         else:
