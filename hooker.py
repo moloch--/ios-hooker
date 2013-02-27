@@ -21,7 +21,7 @@ else:
     WARN = "[!] "
 
 KNOWN_TYPES = [
-    'id', 'NSObject', 'char', 'int', 'unsigned', 'double', 'float', 'long', 'BOOL',
+    'id', 'NSObject', 'void', 'char', 'int', 'unsigned', 'double', 'float', 'long', 'BOOL',
     'NSAffineTransform','NSAppleEventDescriptor','NSAppleEventManager','NSAppleScript',
     'NSArchiver','NSArray','NSAssertionHandler','NSAttributedString','NSAutoreleasePool',
     'NSBlockOperation','NSBundle','NSCache','NSCachedURLResponse','NSCalendar','NSCharacterSet',
