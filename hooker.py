@@ -75,13 +75,17 @@ class ObjcType(object):
         self.is_pointer = pointer
     
     def is_known(self):
-        return self.class_name in KNOWN_TYPES
+        if ' ' in self.class_name:
+            return self.class_name.split(' ')[-1] in KNOWN_TYPES
+        else:
+            return self.class_name in KNOWN_TYPES
     
     def __str__(self):
         return self.class_name+"*" if self.is_pointer else self.class_name
 
 
 class ObjcArgument(object):
+    ''' Holds values for a method argument '''
 
     def __init__(self, class_type, component, external_name=""):
         self.external_name = external_name
@@ -140,8 +144,8 @@ class ObjcMethod(object):
                     while ')' not in arg:
                         arg += args[index + count]
                         count += 1
-                        if 5 < count: 
-                            raise ValueError("Invalid syntax")
+                        if 5 < count or len(args) < (index + count): 
+                            raise ValueError("Invalid syntax; no closing )")
                     fixed_args.append(arg)
             for arg in fixed_args:
                 ext_name, pair = arg.split(":")
@@ -406,12 +410,12 @@ if __name__ == '__main__':
                 verbose=args.verbose,
             )
         else:
-            #try:
-            objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
-            objc.save_hooks(output_fp)
-            print(INFO+"Generated %d function hooks" % objc._hook_count)
-            #except:
-            #   print(WARN+"Invalid objective-c header file")
+            try:
+                objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
+                objc.save_hooks(output_fp)
+                print(INFO+"Generated %d function hooks" % objc._hook_count)
+            except:
+                print(WARN+"Invalid objective-c header file")
         output_fp.seek(0)
         length = len(output_fp.read())
         output_fp.close()
