@@ -1,7 +1,7 @@
 ios-hooker
 ==========
 
-This a Python script to aid in reverse engineering iOS applications.  It's a hacky Objc header parser, and can automatically generate function hooks based on class dumps; spend less time reading objc code and more time hacking!  For best results [class-dump-z](https://code.google.com/p/networkpx/wiki/class_dump_z)
+This a Python script to aid in reverse engineering iOS applications.  It's a hacky Objc header parser, and can automatically generate function hooks based on class dumps.  For best results use [class-dump-z](https://code.google.com/p/networkpx/wiki/class_dump_z)
 
 hooker.py
 ==========
