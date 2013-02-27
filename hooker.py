@@ -144,8 +144,8 @@ class ObjcMethod(object):
                     while ')' not in arg:
                         arg += args[index + count]
                         count += 1
-                        if 5 < count or len(args) < (index + count): 
-                            raise ValueError("Invalid syntax; no closing )")
+                        if len(args) < (index + count): 
+                            raise ValueError("Invalid arg syntax; no closing ')'")
                     fixed_args.append(arg)
             for arg in fixed_args:
                 ext_name, pair = arg.split(":")
