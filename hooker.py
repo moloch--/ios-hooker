@@ -142,7 +142,7 @@ class ObjcMethod(object):
                 elif '(' in arg and not ')' in arg:
                     count = 1  # Look forward for closing ')'
                     while ')' not in arg:
-                        arg += args[index + count]
+                        arg += str(" " + args[index + count])
                         count += 1
                         if len(args) < (index + count): 
                             raise ValueError("Invalid arg syntax; no closing ')'")
