@@ -46,4 +46,6 @@ optional arguments:
   --regex REGEX, -r REGEX
                         only hook classes with file names that match a given
                         regex (only valid with directory)
+  --method-regex METHOD_REGEX, -mr METHOD_REGEX
+                        only create hooks for methods that match a given regex
 ```

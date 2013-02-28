@@ -370,7 +370,7 @@ def scan_directory(class_dir, prefix, output_fp, next_step,
     if file_regex is not None:
         regular_expression = compile_regex(file_regex)
         ls = filter(regular_expression.match, ls)
-    print(INFO + "Found %s file(s) in target directory" % len(ls))
+    print(INFO + "Found %s target file(s) in target directory" % len(ls))
     errors = 0
     total_hooks = 0
     for index, header_file in enumerate(ls):
