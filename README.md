@@ -43,7 +43,7 @@ optional arguments:
                         valid with directory)
   --unknown-types, -u   create hooks for functions with unknown return types
                         (may cause compiler errors)
-  --regex REGEX, -r REGEX
+  --file-regex FILE_REGEX, -fr FILE_REGEX
                         only hook classes with file names that match a given
                         regex (only valid with directory)
   --method-regex METHOD_REGEX, -mr METHOD_REGEX
