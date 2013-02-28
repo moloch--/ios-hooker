@@ -283,22 +283,46 @@ class ObjcHeader(object):
         start = line.index(")")
         return ObjcType(line[start + 1:].split(" ")[1])
 
-    def save_hooks(self, output_fp):
+    def filter_methods(self, methods, regex):
+        ''' Filter methods based on regular expression '''
+        ls = []
+        for method in methods:
+            if regex.match(method.method_name):
+                ls.append(method)
+        return ls
+
+    def save_hooks(self, output_fp, regex=None):
         ''' Parse an entire class header file '''
         if self.class_name is not None:
-            self.write_header(output_fp)
-            output_fp.write("%"+"hook %s\n\n" % self.class_name)
             try:
-                self.write_methods(output_fp, self.properties, "Properties")
-                self.write_methods(output_fp, self.class_methods, "Class Methods")
-                self.write_methods(output_fp, self.instance_methods, "Instance Methods")
+                if regex is not None:
+                    self.__regex__(output_fp, regex)
+                else:
+                    self.write_header(output_fp)
+                    output_fp.write("%"+"hook %s\n\n" % self.class_name)
+                    self.write_methods(output_fp, self.properties, "Properties")
+                    self.write_methods(output_fp, self.class_methods, "Class Methods")
+                    self.write_methods(output_fp, self.instance_methods, "Instance Methods")
+                    output_fp.write("%"+"end\n\n\n")
             except:
                 if not self.verbose: sys.stdout.write('\n')
-                print(WARN+"Error while writing hooks for %s" % self.class_name)
-            finally:
-                output_fp.write("%"+"end\n\n\n")
+                print(WARN+"Error while writing hooks for %s" % self.class_name)   
         elif verbose:
             print(WARN+"No objective-c class in %s" % class_fp.name)
+
+    def __regex__(self, output_fp, regex):
+        ''' Created hooks based on regular expression '''
+        regex = compile_regex(regex)
+        properties = self.filter_methods(self.properties, regex)
+        class_methods = self.filter_methods(self.class_methods, regex)
+        instance_methods = self.filter_methods(self.instance_methods, regex)
+        if 0 < len(properties) + len(class_methods) + len(instance_methods):
+            self.write_header(output_fp)
+            output_fp.write("%"+"hook %s\n\n" % self.class_name)
+            self.write_methods(output_fp, properties, "Properties")
+            self.write_methods(output_fp, class_methods, "Class Methods")
+            self.write_methods(output_fp, instance_methods, "Instance Methods")
+            output_fp.write("%"+"end\n\n\n")
 
     def write_header(self, output_fp):
         ''' Write comment header to output file '''
@@ -327,7 +351,15 @@ def display_info(msg):
     sys.stdout.write('\r' + INFO + msg)
     sys.stdout.flush()
 
-def scan_directory(class_dir, prefix, output_fp, next_step, unknowns, regex, verbose):
+def compile_regex(expression):
+    try:
+        return re.compile(expression)
+    except:
+        print(WARN+"Invalid regular expression")
+        os._exit(1)
+
+def scan_directory(class_dir, prefix, output_fp, next_step, 
+    unknowns, file_regex, method_regex, verbose):
     ''' Scan directory and parse header files '''
     path = os.path.abspath(class_dir)
     ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
@@ -335,12 +367,8 @@ def scan_directory(class_dir, prefix, output_fp, next_step, unknowns, regex, ver
         ls = filter(lambda file_name: file_name.startswith(prefix), ls)
     if not next_step:
         ls = filter(lambda file_name: not file_name.startswith('NS'), ls)
-    if regex is not None:
-        try:
-            regular_expression = re.compile(regex)
-        except:
-            print(WARN+"Invalid regular expression")
-            os._exit(1)
+    if file_regex is not None:
+        regular_expression = compile_regex(file_regex)
         ls = filter(regular_expression.match, ls)
     print(INFO + "Found %s file(s) in target directory" % len(ls))
     errors = 0
@@ -352,7 +380,7 @@ def scan_directory(class_dir, prefix, output_fp, next_step, unknowns, regex, ver
         if verbose: sys.stdout.write('\n')
         try:
             objc = ObjcHeader(path + '/' + header_file, unknowns, verbose)
-            objc.save_hooks(output_fp)
+            objc.save_hooks(output_fp, method_regex)
             total_hooks += objc._hook_count
         except ValueError:
             errors += 1
@@ -405,9 +433,14 @@ if __name__ == '__main__':
         action='store_false',
         dest='unknowns',
     )
-    parser.add_argument('--regex', '-r',
+    parser.add_argument('--file-regex', '-fr',
         help='only hook classes with file names that match a given regex (only valid with directory)',
-        dest='regex',
+        dest='file_regex',
+        default=None,
+    )
+    parser.add_argument('--method-regex', '-mr',
+        help='only create hooks for methods that match a given regex',
+        dest='method_regex',
         default=None,
     )
     args = parser.parse_args()
@@ -419,13 +452,14 @@ if __name__ == '__main__':
                 args.target, args.prefix, output_fp, 
                 next_step=args.next_step,
                 unknowns=args.unknowns,
-                regex=args.regex,
+                file_regex=args.file_regex,
+                method_regex=args.method_regex,
                 verbose=args.verbose,
             )
         else:
             try:
                 objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
-                objc.save_hooks(output_fp)
+                objc.save_hooks(output_fp, args.method_regex)
                 print(INFO+"Generated %d function hooks" % objc._hook_count)
             except:
                 print(WARN+"Invalid objective-c header file")
