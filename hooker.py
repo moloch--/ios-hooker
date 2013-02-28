@@ -298,12 +298,9 @@ class ObjcHeader(object):
                 if regex is not None:
                     self.__regex__(output_fp, regex)
                 else:
-                    self.write_header(output_fp)
-                    output_fp.write("%"+"hook %s\n\n" % self.class_name)
-                    self.write_methods(output_fp, self.properties, "Properties")
-                    self.write_methods(output_fp, self.class_methods, "Class Methods")
-                    self.write_methods(output_fp, self.instance_methods, "Instance Methods")
-                    output_fp.write("%"+"end\n\n\n")
+                    self.__save__(output_fp, 
+                        self.properties, self.class_methods, self.instance_methods
+                    )
             except:
                 if not self.verbose: sys.stdout.write('\n')
                 print(WARN+"Error while writing hooks for %s" % self.class_name)   
@@ -317,12 +314,15 @@ class ObjcHeader(object):
         class_methods = self.filter_methods(self.class_methods, regex)
         instance_methods = self.filter_methods(self.instance_methods, regex)
         if 0 < len(properties) + len(class_methods) + len(instance_methods):
-            self.write_header(output_fp)
-            output_fp.write("%"+"hook %s\n\n" % self.class_name)
-            self.write_methods(output_fp, properties, "Properties")
-            self.write_methods(output_fp, class_methods, "Class Methods")
-            self.write_methods(output_fp, instance_methods, "Instance Methods")
-            output_fp.write("%"+"end\n\n\n")
+            self.__save__(output_fp, properties, class_methods, instance_methods)            
+
+    def __save__(self, output_fp, properties, class_methods, instance_methods):
+        self.write_header(output_fp)
+        output_fp.write("%"+"hook %s\n\n" % self.class_name)
+        self.write_methods(output_fp, properties, "Properties")
+        self.write_methods(output_fp, class_methods, "Class Methods")
+        self.write_methods(output_fp, instance_methods, "Instance Methods")
+        output_fp.write("%"+"end\n\n\n")
 
     def write_header(self, output_fp):
         ''' Write comment header to output file '''
