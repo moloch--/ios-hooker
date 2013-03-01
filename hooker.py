@@ -366,7 +366,7 @@ def scan_directory(class_dir, prefix, output_fp, next_step,
     if prefix is not None:
         ls = filter(lambda file_name: file_name.startswith(prefix), ls)
     if not next_step:
-        ls = filter(lambda file_name: not file_name.startswith('NS'), ls)
+        ls = filter(lambda file_name: not file_name[:-2] in KNOWN_TYPES, ls)
     if file_regex is not None:
         regular_expression = compile_regex(file_regex)
         ls = filter(regular_expression.match, ls)
@@ -399,6 +399,11 @@ if __name__ == '__main__':
         action='version', 
         version='%(prog)s v0.1'
     )
+    parser.add_argument('--verbose', '-v',
+        help='display verbose output (default: false)',
+        action='store_true',
+        dest='verbose',
+    )
     parser.add_argument('--target', '-t',
         help='file or directory with objc header file(s)',
         dest='target',
@@ -408,37 +413,32 @@ if __name__ == '__main__':
         help='output file with hooks (default: Tweak.xm)',
         default='Tweak.xm',
     )
-    parser.add_argument('--next-step', '-n',
-        help='parse and hook NS class files (default: false)',
-        action='store_true',
-        dest='next_step',
-    )
-    parser.add_argument('--verbose', '-v',
-        help='display verbose output (default: false)',
-        action='store_true',
-        dest='verbose',
-    )
     parser.add_argument('--append', '-a',
         help='append output file (default: false)',
         action='store_true',
         dest='append',
     )
-    parser.add_argument('--prefix', '-p',
-        help='only hook classes with a given file name prefix (only valid with directory)',
-        dest='prefix',
-        default=None,
+    parser.add_argument('--next-step', '-n',
+        help='parse and hook NS class files (default: false)',
+        action='store_true',
+        dest='next_step',
     )
     parser.add_argument('--unknown-types', '-u',
         help='create hooks for functions with unknown return types (may cause compiler errors)',
         action='store_false',
         dest='unknowns',
     )
-    parser.add_argument('--file-regex', '-fr',
+    parser.add_argument('--prefix', '-p',
+        help='only hook classes with a given file name prefix (only valid with directory)',
+        dest='prefix',
+        default=None,
+    )
+    parser.add_argument('--file-regex', '-f',
         help='only hook classes with file names that match a given regex (only valid with directory)',
         dest='file_regex',
         default=None,
     )
-    parser.add_argument('--method-regex', '-mr',
+    parser.add_argument('--method-regex', '-m',
         help='only create hooks for methods that match a given regex',
         dest='method_regex',
         default=None,
