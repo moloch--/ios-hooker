@@ -31,21 +31,21 @@ Generate hooks for an objc class header file
 optional arguments:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
+  --verbose, -v         display verbose output (default: false)
   --target TARGET, -t TARGET
                         file or directory with objc header file(s)
   --output OUTPUT, -o OUTPUT
                         output file with hooks (default: Tweak.xm)
-  --next-step, -n       parse and hook NS class files (default: false)
-  --verbose, -v         display verbose output (default: false)
   --append, -a          append output file (default: false)
+  --next-step, -n       parse and hook NS class files (default: false)
+  --unknown-types, -u   create hooks for functions with unknown return types
+                        (may cause compiler errors)
   --prefix PREFIX, -p PREFIX
                         only hook classes with a given file name prefix (only
                         valid with directory)
-  --unknown-types, -u   create hooks for functions with unknown return types
-                        (may cause compiler errors)
-  --file-regex FILE_REGEX, -fr FILE_REGEX
+  --file-regex FILE_REGEX, -f FILE_REGEX
                         only hook classes with file names that match a given
                         regex (only valid with directory)
-  --method-regex METHOD_REGEX, -mr METHOD_REGEX
+  --method-regex METHOD_REGEX, -m METHOD_REGEX
                         only create hooks for methods that match a given regex
 ```
