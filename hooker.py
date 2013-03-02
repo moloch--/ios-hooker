@@ -108,21 +108,18 @@ class ObjcMethod(object):
     def __init__(self, name, static=False):
         self.method_name = name
         self._arguments = []
-        self._return_type = None
+        self._ret_type = None
         self.is_static = static
 
     @property
     def return_type(self):
         ''' Never return None type '''
-        if self._return_type is None:
-            return ObjcType("void")
-        else:
-            return self._return_type
+        return self._ret_type if self._ret_type is not None else ObjcType("void")
 
     @return_type.setter
     def return_type(self, value):
         ''' Should already be ObjcType() '''
-        self._return_type = value
+        self._ret_type = value
 
     @property
     def arguments(self):
@@ -204,7 +201,7 @@ class ObjcHeader(object):
                 ret = self.get_return_type(line)
                 if self.drop_unknowns and not ret.is_known():
                     if self.verbose:
-                        print(WARN+'Unknown return type; skipping class method %s' % method_name)
+                        print(WARN+'Unknown return type; skipping class method "%s"' % method_name)
                     continue
                 args = self.get_arguments(line)
                 class_method = ObjcMethod(method_name, static=True)
@@ -227,7 +224,7 @@ class ObjcHeader(object):
                 ret = self.get_return_type(line)
                 if self.drop_unknowns and not ret.is_known():
                     if self.verbose:
-                        print(WARN+'Unknown return type; skipping instance method %s' % method_name)
+                        print(WARN+'Unknown return type; skipping instance method "%s"' % method_name)
                     continue
                 else:
                     args = self.get_arguments(line)
@@ -247,7 +244,7 @@ class ObjcHeader(object):
                 property_type = self.get_property_type(line)
                 if self.drop_unknowns and not property_type.is_known():
                     if self.verbose:
-                        print(WARN+'Unknown return type; skipping property %s' % name)
+                        print(WARN+'Unknown return type; skipping property "%s"' % name)
                     continue
                 else:
                     class_property = ObjcMethod(name)
@@ -257,12 +254,9 @@ class ObjcHeader(object):
 
     def get_method_name(self, line):
         ''' Get method name from a line of source '''
-        start = line.index(')')
-        if ':' in line:
-            end = line.index(":")
-        else:
-            end = -1
-        return line[start + 1:end]
+        line = line[line.index(")") + 1:]
+        end = line.index(":") if ':' in line else -1
+        return line[:end]
     
     def get_return_type(self, line):
         ''' Get the return value from a line of source '''
@@ -461,7 +455,7 @@ if __name__ == '__main__':
                 objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
                 objc.save_hooks(output_fp, args.method_regex)
                 print(INFO+"Generated %d function hooks" % objc._hook_count)
-            except:
+            except ValueError:
                 print(WARN+"Invalid objective-c header file")
         output_fp.seek(0)
         length = len(output_fp.read())
