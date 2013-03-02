@@ -76,7 +76,9 @@ class ObjcType(object):
         self.class_name = name
         self.is_pointer = pointer
     
+    @property
     def is_known(self):
+        ''' Returns boolean if the current class is in the NS-STL '''
         if ' ' in self.class_name:
             return self.class_name.split(' ')[-1] in KNOWN_TYPES
         else:
@@ -199,7 +201,7 @@ class ObjcHeader(object):
                 if self.verbose:
                     print(INFO + "Hooking class method: %s" % method_name)
                 ret = self.get_return_type(line)
-                if self.drop_unknowns and not ret.is_known():
+                if self.drop_unknowns and not ret.is_known:
                     if self.verbose:
                         print(WARN+'Unknown return type; skipping class method "%s"' % method_name)
                     continue
@@ -222,7 +224,7 @@ class ObjcHeader(object):
                 if self.verbose:
                     print(INFO+"Hooking instance method: %s" % method_name)
                 ret = self.get_return_type(line)
-                if self.drop_unknowns and not ret.is_known():
+                if self.drop_unknowns and not ret.is_known:
                     if self.verbose:
                         print(WARN+'Unknown return type; skipping instance method "%s"' % method_name)
                     continue
@@ -242,7 +244,7 @@ class ObjcHeader(object):
             if line.startswith("@property"):
                 name = self.get_property_name(line)
                 property_type = self.get_property_type(line)
-                if self.drop_unknowns and not property_type.is_known():
+                if self.drop_unknowns and not property_type.is_known:
                     if self.verbose:
                         print(WARN+'Unknown return type; skipping property "%s"' % name)
                     continue
@@ -274,8 +276,8 @@ class ObjcHeader(object):
     
     def get_property_type(self, line):
         ''' Get property type from line of source '''
-        start = line.index(")")
-        return ObjcType(line[start + 1:].split(" ")[1])
+        name = line[line.index(")") + 1:line.rindex(" ")] 
+        return ObjcType(name[1:]) if name.startswith(" ") else ObjcType(name)
 
     def filter_methods(self, methods, regex):
         ''' Filter methods based on regular expression '''
@@ -346,6 +348,7 @@ def display_info(msg):
     sys.stdout.flush()
 
 def compile_regex(expression):
+    ''' Ensures we got a valid regex from user '''
     try:
         return re.compile(expression)
     except:
