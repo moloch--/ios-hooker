@@ -262,9 +262,9 @@ class ObjcHeader(object):
     
     def get_return_type(self, line):
         ''' Get the return value from a line of source '''
-        ctype = line[:line.index(')') + 1]
+        ctype = line[2:line.index(')') + 1]
         pointer = '*' in ctype
-        return ObjcType(ctype[2:-1], pointer=pointer)
+        return ObjcType(ctype[:-1], pointer=pointer)
     
     def get_arguments(self, line):
         ''' Get function arguments from a line of source '''
@@ -280,12 +280,8 @@ class ObjcHeader(object):
         return ObjcType(name[1:]) if name.startswith(" ") else ObjcType(name)
 
     def filter_methods(self, methods, regex):
-        ''' Filter methods based on regular expression '''
-        ls = []
-        for method in methods:
-            if regex.match(method.method_name):
-                ls.append(method)
-        return ls
+        ''' Filter methods based on matching method name  to regular expression '''
+        return [method for method in methods if regex.match(method.method_name)]
 
     def save_hooks(self, output_fp, regex=None):
         ''' Parse an entire class header file '''
@@ -304,7 +300,7 @@ class ObjcHeader(object):
             print(WARN+"No objective-c class in %s" % class_fp.name)
 
     def __regex__(self, output_fp, regex):
-        ''' Created hooks based on regular expression '''
+        ''' Created hooks based on methods that match a regular expression '''
         regex = compile_regex(regex)
         properties = self.filter_methods(self.properties, regex)
         class_methods = self.filter_methods(self.class_methods, regex)
@@ -313,6 +309,7 @@ class ObjcHeader(object):
             self.__save__(output_fp, properties, class_methods, instance_methods)            
 
     def __save__(self, output_fp, properties, class_methods, instance_methods):
+        ''' Save hooks to output file '''
         self.write_header(output_fp)
         output_fp.write("%"+"hook %s\n\n" % self.class_name)
         self.write_methods(output_fp, properties, "Properties")
@@ -356,7 +353,7 @@ def compile_regex(expression):
         os._exit(1)
 
 def scan_directory(class_dir, prefix, output_fp, next_step, 
-    unknowns, file_regex, method_regex, verbose):
+                    unknowns, file_regex, method_regex, verbose):
     ''' Scan directory and parse header files '''
     path = os.path.abspath(class_dir)
     ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
