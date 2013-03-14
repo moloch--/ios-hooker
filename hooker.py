@@ -4,7 +4,7 @@
 #                   iOS Hooker
 # ===================================================
 #
-#  About: Hacky Objective-c parser for generating 
+#  About: Hacky Objective-c parser for generating
 #  function hooks automagically.
 #
 
@@ -62,7 +62,7 @@ KNOWN_TYPES = [
     'NSDecimalNumberBehaviors','NSErrorRecoveryAttempting','NSFastEnumeration','NSFileManagerDelegate',
     'NSFilePresenter','NSKeyedArchiverDelegate','NSKeyedUnarchiverDelegate','NSKeyValueCoding','NSKeyValueObserving',
     'NSLocking','NSMachPortDelegate','NSMetadataQueryDelegate','NSMutableCopying','NSNetServiceBrowserDelegate',
-    'NSNetServiceDelegate','NSObject','NSPortDelegate','NSScriptingComparisonMethods','NSScriptKeyValueCoding',
+    'NSNetServiceDelegate', 'NSPortDelegate','NSScriptingComparisonMethods','NSScriptKeyValueCoding',
     'NSScriptObjectSpecifiers','NSSecureCoding','NSSpellServerDelegate','NSStreamDelegate',
     'NSURLAuthenticationChallengeSender','NSURLConnectionDataDelegate','NSURLConnectionDelegate',
     'NSURLConnectionDelegate','NSURLHandleClient','NSURLProtocolClient','NSUserNotificationCenterDelegate',
@@ -71,11 +71,12 @@ KNOWN_TYPES = [
 
 
 class ObjcType(object):
-    
+    ''' Represents an objective-c type '''
+
     def __init__(self, name, pointer=False):
         self.class_name = name
         self.is_pointer = pointer
-    
+
     @property
     def is_known(self):
         ''' Returns boolean if the current class is in the NS-STL '''
@@ -83,9 +84,9 @@ class ObjcType(object):
             return self.class_name.split(' ')[-1] in KNOWN_TYPES
         else:
             return self.class_name in KNOWN_TYPES
-    
+
     def __str__(self):
-        return self.class_name+"*" if self.is_pointer else self.class_name
+        return self.class_name + "*" if self.is_pointer else self.class_name
 
 
 class ObjcArgument(object):
@@ -106,7 +107,8 @@ class ObjcArgument(object):
 
 
 class ObjcMethod(object):
-    
+    ''' Represents an objective-c function/method '''
+
     def __init__(self, name, static=False):
         self.method_name = name
         self._arguments = []
@@ -132,7 +134,7 @@ class ObjcMethod(object):
         '''
         Objective-c has the dumbest argument syntax of any programming language
         I've ever encountered so parsing it is a little wonky.  This is a dirty
-        hack that seems works okay.  
+        hack that seems works okay.
         '''
         if 0 < len(arguments):
             args = arguments.split(' ')
@@ -145,8 +147,8 @@ class ObjcMethod(object):
                     while ')' not in arg:
                         arg += str(" " + args[index + count])
                         count += 1
-                        if len(args) < (index + count): 
-                            raise ValueError("Invalid arg syntax; no closing ')'")
+                        if len(args) < (index + count):
+                            raise ValueError("Invalid syntax; no closing ')'")
                     fixed_args.append(arg)
             for arg in fixed_args:
                 ext_name, pair = arg.split(":")
@@ -159,13 +161,16 @@ class ObjcMethod(object):
                 self._arguments.append(method_argument)
 
     def __str__(self):
-        name = "(%s) " % str(self.return_type)
-        name = "+"+name if self.is_static else "-"+name
-        return name + self.method_name + ' '.join([str(arg) for arg in self.arguments])
+        ret = "(%s) " % str(self.return_type)
+        ret = "+" + ret if self.is_static else "-" + ret
+        return ret + self.method_name + ' '.join(
+            [str(arg) for arg in self.arguments]
+        )
 
 
 class ObjcHeader(object):
-    
+    ''' Represents an objective-c header file and it's methods, etc '''
+
     def __init__(self, file_path, unknowns=True, verbose=False):
         self.file_path = os.path.abspath(file_path)
         self.file_name = os.path.basename(self.file_path)
@@ -175,7 +180,7 @@ class ObjcHeader(object):
         self.drop_unknowns = unknowns
         self._class_name = None
         self._hook_count = 0
-    
+
     @property
     def class_name(self):
         ''' Get class name from source code '''
@@ -186,11 +191,11 @@ class ObjcHeader(object):
                 if line.startswith('@interface'):
                     class_name = line.split(' ')[1]
                     if self.verbose:
-                        sys.stdout.write(INFO + "Found class: %s\n" % class_name)
+                        print(INFO + "Found class: %s" % class_name)
                     self._class_name = class_name
                     return self._class_name
             raise ValueError("Invalid header syntax, no class name found")
-    
+
     @property
     def class_methods(self):
         ''' Parse source code and return list of class methods '''
@@ -203,7 +208,7 @@ class ObjcHeader(object):
                 ret = self.get_return_type(line)
                 if self.drop_unknowns and not ret.is_known:
                     if self.verbose:
-                        print(WARN+'Unknown return type; skipping class method "%s"' % method_name)
+                        print(WARN + 'Unknown return type; skipping class method "%s"' % method_name)
                     continue
                 args = self.get_arguments(line)
                 class_method = ObjcMethod(method_name, static=True)
@@ -222,11 +227,11 @@ class ObjcHeader(object):
                 if method_name == '.cxx_destruct':
                     continue
                 if self.verbose:
-                    print(INFO+"Hooking instance method: %s" % method_name)
+                    print(INFO + "Hooking instance method: %s" % method_name)
                 ret = self.get_return_type(line)
                 if self.drop_unknowns and not ret.is_known:
                     if self.verbose:
-                        print(WARN+'Unknown return type; skipping instance method "%s"' % method_name)
+                        print(WARN + 'Unknown return type; skipping instance method "%s"' % method_name)
                     continue
                 else:
                     args = self.get_arguments(line)
@@ -235,7 +240,7 @@ class ObjcHeader(object):
                     instance_method.arguments = args
                     methods.append(instance_method)
         return methods
-    
+
     @property
     def properties(self):
         ''' Parse source code and return list of class properties '''
@@ -246,7 +251,7 @@ class ObjcHeader(object):
                 property_type = self.get_property_type(line)
                 if self.drop_unknowns and not property_type.is_known:
                     if self.verbose:
-                        print(WARN+'Unknown return type; skipping property "%s"' % name)
+                        print(WARN + 'Unknown return type; skipping property "%s"' % name)
                     continue
                 else:
                     class_property = ObjcMethod(name)
@@ -259,29 +264,31 @@ class ObjcHeader(object):
         line = line[line.index(")") + 1:]
         end = line.index(":") if ':' in line else -1
         return line[:end]
-    
+
     def get_return_type(self, line):
         ''' Get the return value from a line of source '''
         ctype = line[2:line.index(')') + 1]
         pointer = '*' in ctype
         return ObjcType(ctype[:-1], pointer=pointer)
-    
+
     def get_arguments(self, line):
         ''' Get function arguments from a line of source '''
         return line[line.index(":"):-1] if ':' in line else ""
-    
+
     def get_property_name(self, line):
         ''' Get a property's name from a line of source '''
         return line.split(" ")[-1][:-1]
-    
+
     def get_property_type(self, line):
         ''' Get property type from line of source '''
-        name = line[line.index(")") + 1:line.rindex(" ")] 
+        name = line[line.index(")") + 1:line.rindex(" ")]
         return ObjcType(name[1:]) if name.startswith(" ") else ObjcType(name)
 
     def filter_methods(self, methods, regex):
-        ''' Filter methods based on matching method name  to regular expression '''
-        return [method for method in methods if regex.match(method.method_name)]
+        '''
+        Filter methods based on matching method name  to regular expression
+        '''
+        return [func for func in methods if regex.match(func.method_name)]
 
     def save_hooks(self, output_fp, regex=None):
         ''' Parse an entire class header file '''
@@ -290,14 +297,15 @@ class ObjcHeader(object):
                 if regex is not None:
                     self.__regex__(output_fp, regex)
                 else:
-                    self.__save__(output_fp, 
-                        self.properties, self.class_methods, self.instance_methods
+                    self.__save__(output_fp,
+                        self.properties,
+                        self.class_methods,
+                        self.instance_methods
                     )
             except:
-                if not self.verbose: sys.stdout.write('\n')
-                print(WARN+"Error while writing hooks for %s" % self.class_name)   
-        elif verbose:
-            print(WARN+"No objective-c class in %s" % class_fp.name)
+                if not self.verbose:
+                    sys.stdout.write('\n')
+                print(WARN + "Error while writing hooks for %s" % self.class_name)
 
     def __regex__(self, output_fp, regex):
         ''' Created hooks based on methods that match a regular expression '''
@@ -306,23 +314,23 @@ class ObjcHeader(object):
         class_methods = self.filter_methods(self.class_methods, regex)
         instance_methods = self.filter_methods(self.instance_methods, regex)
         if 0 < len(properties) + len(class_methods) + len(instance_methods):
-            self.__save__(output_fp, properties, class_methods, instance_methods)            
+            self.__save__(output_fp, properties, class_methods, instance_methods)
 
     def __save__(self, output_fp, properties, class_methods, instance_methods):
         ''' Save hooks to output file '''
         self.write_header(output_fp)
-        output_fp.write("%"+"hook %s\n\n" % self.class_name)
+        output_fp.write("%" + "hook %s\n\n" % self.class_name)
         self.write_methods(output_fp, properties, "Properties")
         self.write_methods(output_fp, class_methods, "Class Methods")
         self.write_methods(output_fp, instance_methods, "Instance Methods")
-        output_fp.write("%"+"end\n\n\n")
+        output_fp.write("%" + "end\n\n\n")
 
     def write_header(self, output_fp):
         ''' Write comment header to output file '''
         output_fp.write("/*==%s\n" % str("=" * len(self.class_name)))
         output_fp.write("  %s  \n" % self.class_name)
         output_fp.write(str("=" * len(self.class_name)) + "==*/\n\n")
-    
+
     def write_methods(self, output_fp, methods, comment=None):
         ''' Write hooks for a list of methods to output file '''
         if 0 < len(methods):
@@ -331,28 +339,32 @@ class ObjcHeader(object):
             for method in methods:
                 self._hook_count += 1
                 output_fp.write("%s {\n" % str(method))
-                output_fp.write("    %"+"log;\n")
+                output_fp.write("    %" + "log;\n")
                 if 'void' in str(method.return_type):
-                    output_fp.write("    %"+"orig;\n")
+                    output_fp.write("    %" + "orig;\n")
                 else:
-                    output_fp.write("    return %"+"orig;\n")
+                    output_fp.write("    return %" + "orig;\n")
                 output_fp.write("}\n")
             output_fp.write("\n")
 
+
 def display_info(msg):
+    ''' Clearline and print message '''
     sys.stdout.write(chr(27) + '[2K')
     sys.stdout.write('\r' + INFO + msg)
     sys.stdout.flush()
+
 
 def compile_regex(expression):
     ''' Ensures we got a valid regex from user '''
     try:
         return re.compile(expression)
     except:
-        print(WARN+"Invalid regular expression")
+        print(WARN + "Invalid regular expression")
         os._exit(1)
 
-def scan_directory(class_dir, prefix, output_fp, next_step, 
+
+def scan_directory(class_dir, prefix, output_fp, next_step,
                     unknowns, file_regex, method_regex, verbose):
     ''' Scan directory and parse header files '''
     path = os.path.abspath(class_dir)
@@ -371,7 +383,8 @@ def scan_directory(class_dir, prefix, output_fp, next_step,
         display_info("Parsing %d of %d files: %s... " % (
             index + 1, len(ls), header_file[:-2],
         ))
-        if verbose: sys.stdout.write('\n')
+        if verbose:
+            sys.stdout.write('\n')
         try:
             objc = ObjcHeader(path + '/' + header_file, unknowns, verbose)
             objc.save_hooks(output_fp, method_regex)
@@ -379,18 +392,18 @@ def scan_directory(class_dir, prefix, output_fp, next_step,
         except ValueError:
             errors += 1
             if verbose:
-                print(WARN+"Error: Invalid objective-c header file")
+                print(WARN + "Error: Invalid objective-c header file")
     display_info("Successfully parsed %d of %d file(s)\n" % (
         len(ls) - errors, len(ls),
     ))
-    print(INFO+"Generated %d function hooks" % total_hooks)
+    print(INFO + "Generated %d function hooks" % total_hooks)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Generate hooks for an objc class header file',
     )
-    parser.add_argument('--version', 
-        action='version', 
+    parser.add_argument('--version',
+        action='version',
         version='%(prog)s v0.1'
     )
     parser.add_argument('--verbose', '-v',
@@ -443,7 +456,7 @@ if __name__ == '__main__':
         output_fp = open(args.output, mode)
         if os.path.isdir(args.target):
             scan_directory(
-                args.target, args.prefix, output_fp, 
+                args.target, args.prefix, output_fp,
                 next_step=args.next_step,
                 unknowns=args.unknowns,
                 file_regex=args.file_regex,
@@ -452,15 +465,18 @@ if __name__ == '__main__':
             )
         else:
             try:
-                objc = ObjcHeader(args.target, unknowns=args.unknowns, verbose=args.verbose)
+                objc = ObjcHeader(args.target,
+                    unknowns=args.unknowns,
+                    verbose=args.verbose
+                )
                 objc.save_hooks(output_fp, args.method_regex)
-                print(INFO+"Generated %d function hooks" % objc._hook_count)
+                print(INFO + "Generated %d function hooks" % objc._hook_count)
             except ValueError:
-                print(WARN+"Invalid objective-c header file")
+                print(WARN + "Invalid objective-c header file")
         output_fp.seek(0)
         length = len(output_fp.read())
         output_fp.close()
-        print(INFO+"Hooks written to: "+args.output+" (%d bytes)" % length)
+        print(INFO + "Hooks written to: "),
+        print(args.output + " (%d bytes)" % length)
     else:
-        print(WARN+"File or directory does not exist")
-    
+        print(WARN + "File or directory does not exist")
