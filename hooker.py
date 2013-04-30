@@ -384,7 +384,8 @@ class ObjcHeader(object):
             output_fp.write("    %s %s = " % (method.return_type, property_name))
             output_fp.write("%" + "orig;\n")
             output_fp.write('    NSLog(@"[<- Getter](%s) %s:' % (str(method.return_type), property_name))
-            output_fp.write('%'+'@", %s);\n' % property_name)
+            printf = "@" if str(method.return_type) not in nslog else nslog[str(method.return_type)]
+            output_fp.write('%'+'%s", %s);\n' % (printf, property_name))
             output_fp.write('    return %s;\n' % property_name)
             output_fp.write("}\n")
         if self.setters:
