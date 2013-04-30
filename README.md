@@ -8,7 +8,7 @@ hooker.py
 Automatically parse objective-c header files and produce hooks for class methods, instance methods, and class properties.  Compile generated hooks using [Theos](https://github.com/DHowett/theos)
 
 ```
-mdkir header_files
+mkdir header_files
 class-dump-z iOSApp -H -o ./header_files
 hooker.py --target ./header_files
 ```
@@ -22,9 +22,10 @@ hooker.py --target FooHeader.h
 Usage
 ==============
 ```
-usage: hooker.py [-h] [--version] --target TARGET [--output OUTPUT]
-                 [--next-step] [--verbose] [--append] [--prefix PREFIX]
-                 [--unknown-types]
+usage: hooker.py [-h] [--version] [--verbose] --target TARGET
+                 [--output OUTPUT] [--append] [--next-step] [--load-hook]
+                 [--unknown-types] [--prefix PREFIX] [--file-regex FILE_REGEX]
+                 [--method-regex METHOD_REGEX] [--getters] [--setters]
 
 Generate hooks for an objc class header file
 
@@ -38,6 +39,7 @@ optional arguments:
                         output file with hooks (default: Tweak.xm)
   --append, -a          append output file (default: false)
   --next-step, -n       parse and hook NS class files (default: false)
+  --load-hook, -l       generate hook when dylib is loaded (default: false)
   --unknown-types, -u   create hooks for functions with unknown return types
                         (may cause compiler errors)
   --prefix PREFIX, -p PREFIX
@@ -48,4 +50,6 @@ optional arguments:
                         regex (only valid with directory)
   --method-regex METHOD_REGEX, -m METHOD_REGEX
                         only create hooks for methods that match a given regex
+  --getters, -g         create hooks for @property getters (default: false)
+  --setters, -s         create hooks for @property setters (default: false)
 ```
