@@ -22,6 +22,7 @@ else:
     INFO = "[*] "
     WARN = "[!] "
 
+# Makes for easy compiling; this can of course be optionally disabled
 KNOWN_TYPES = [
     'id', 'NSObject', 'void', 'char', 'int', 'unsigned', 'double', 'float', 'long', 'BOOL',
     'NSAffineTransform','NSAppleEventDescriptor','NSAppleEventManager','NSAppleScript',
@@ -76,10 +77,12 @@ class ObjcType(object):
     def __init__(self, name, pointer=False):
         self.class_name = name
         self.is_pointer = pointer
+        self.comments = ""
 
     @property
     def is_known(self):
         ''' Returns boolean if the current class is in the NS-STL '''
+        # This checks for things like "unsigned int"
         if ' ' in self.class_name:
             return self.class_name.split(' ')[-1] in KNOWN_TYPES
         else:
@@ -224,7 +227,7 @@ class ObjcHeader(object):
         for line in self.source_code.split('\n'):
             if line.startswith('-'):
                 method_name = self.get_method_name(line)
-                if method_name == '.cxx_destruct':
+                if method_name == '.cxx_destruct' or method_name == 'cxx_construct':
                     continue
                 if self.verbose:
                     print(INFO + "Hooking instance method: %s" % method_name)
@@ -251,7 +254,9 @@ class ObjcHeader(object):
                 property_type = self.get_property_type(line)
                 if self.drop_unknowns and not property_type.is_known:
                     if self.verbose:
-                        print(WARN + 'Unknown return type; skipping property "%s"' % name)
+                        print(WARN + 'Unknown return type "%s", skipping property "%s"' % (
+                            (property_type.class_name, name,)
+                        ))
                     continue
                 else:
                     class_property = ObjcMethod(name)
@@ -282,7 +287,13 @@ class ObjcHeader(object):
     def get_property_type(self, line):
         ''' Get property type from line of source '''
         name = line[line.index(")") + 1:line.rindex(" ")]
-        return ObjcType(name[1:]) if name.startswith(" ") else ObjcType(name)
+        ptr = name.endswith("*")
+        if ptr:  # Cut off "*"
+            name = name[:-1]
+        if name.startswith(" "):
+            return ObjcType(name[1:], pointer=ptr)  
+        else:
+            return ObjcType(name, pointer=ptr)
 
     def filter_methods(self, methods, regex):
         '''
@@ -302,10 +313,15 @@ class ObjcHeader(object):
                         self.class_methods,
                         self.instance_methods
                     )
-            except:
+            except IOError:
                 if not self.verbose:
                     sys.stdout.write('\n')
                 print(WARN + "Error while writing hooks for %s" % self.class_name)
+            except Exception as error:
+                if self.verbose:
+                    sys.stdout.write(WARN + str(error) + '\n')
+                else:
+                    print(WARN + "Error while parsing file.")
 
     def __regex__(self, output_fp, regex):
         ''' Created hooks based on methods that match a regular expression '''
