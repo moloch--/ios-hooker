@@ -356,10 +356,10 @@ class ObjcHeader(object):
             if comment is not None:
                 output_fp.write("/* %s */\n" % comment)
             for method in methods:
-                self._hook_count += 1
                 if etters:
                     self.write_etters(output_fp, method)
                 else:
+                    self._hook_count += 1
                     output_fp.write("%s {\n" % str(method))
                     output_fp.write("    %" + "log;\n")
                     if 'void' in str(method.return_type):
@@ -379,6 +379,7 @@ class ObjcHeader(object):
         property_name = method.method_name
         etter_name = "et" + property_name[0].upper() + property_name[1:]
         if self.getters:
+            self._hook_count += 1
             output_fp.write("-(%s) " % method.return_type)
             output_fp.write("g%s {\n" % etter_name)
             output_fp.write("    %s %s = " % (method.return_type, property_name))
@@ -389,6 +390,7 @@ class ObjcHeader(object):
             output_fp.write('    return %s;\n' % property_name)
             output_fp.write("}\n")
         if self.setters:
+            self._hook_count += 1
             output_fp.write("-(void) s"+etter_name+": ")
             output_fp.write("(%s)%s {\n" % (method.return_type, property_name))
             # output_fp.write('    NSLog(@" >>> Enter %s Setter >>>");\n' % property_name)
@@ -516,10 +518,12 @@ if __name__ == '__main__':
     )
     parser.add_argument('--getters', '-g',
         help='create hooks for @property getters (default: false)',
+        dest='getters',
         action='store_true',
     )
     parser.add_argument('--setters', '-s',
         help='create hooks for @property setters (default: false)',
+        dest='setters',
         action='store_true',
     )
     args = parser.parse_args()
