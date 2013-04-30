@@ -183,6 +183,8 @@ class ObjcHeader(object):
         self.drop_unknowns = unknowns
         self._class_name = None
         self._hook_count = 0
+        self.setters = False
+        self.getters = False
 
     @property
     def class_name(self):
@@ -336,9 +338,10 @@ class ObjcHeader(object):
         ''' Save hooks to output file '''
         self.write_header(output_fp)
         output_fp.write("%" + "hook %s\n\n" % self.class_name)
-        self.write_methods(output_fp, properties, "Properties")
-        self.write_methods(output_fp, class_methods, "Class Methods")
-        self.write_methods(output_fp, instance_methods, "Instance Methods")
+        if self.getters or self.setters:
+            self.write_methods(output_fp, properties, etters=True, comment="Properties")
+        self.write_methods(output_fp, class_methods, comment="Class Methods")
+        self.write_methods(output_fp, instance_methods, comment="Instance Methods")
         output_fp.write("%" + "end\n\n\n")
 
     def write_header(self, output_fp):
@@ -347,21 +350,52 @@ class ObjcHeader(object):
         output_fp.write("  %s  \n" % self.class_name)
         output_fp.write(str("=" * len(self.class_name)) + "==*/\n\n")
 
-    def write_methods(self, output_fp, methods, comment=None):
+    def write_methods(self, output_fp, methods, etters=False, comment=None):
         ''' Write hooks for a list of methods to output file '''
         if 0 < len(methods):
             if comment is not None:
                 output_fp.write("/* %s */\n" % comment)
             for method in methods:
                 self._hook_count += 1
-                output_fp.write("%s {\n" % str(method))
-                output_fp.write("    %" + "log;\n")
-                if 'void' in str(method.return_type):
-                    output_fp.write("    %" + "orig;\n")
+                if etters:
+                    self.write_etters(output_fp, method)
                 else:
-                    output_fp.write("    return %" + "orig;\n")
-                output_fp.write("}\n")
+                    output_fp.write("%s {\n" % str(method))
+                    output_fp.write("    %" + "log;\n")
+                    if 'void' in str(method.return_type):
+                        output_fp.write("    %" + "orig;\n")
+                    else:
+                        output_fp.write("    return %" + "orig;\n")
+                    output_fp.write("}\n")
             output_fp.write("\n")
+
+    def write_etters(self, output_fp, method, setters=True, getters=True):
+        '''
+        Here we deal with objective-c's dumbass getter/setter methods.
+        They may not show up in the class dump but they're magically 
+        there.  Use this for @property's
+        '''
+        nslog = {"int": "d", "BOOL": "d"}
+        property_name = method.method_name
+        etter_name = "et" + property_name[0].upper() + property_name[1:]
+        if self.getters:
+            output_fp.write("-(%s) " % method.return_type)
+            output_fp.write("g%s {\n" % etter_name)
+            output_fp.write("    %s %s = " % (method.return_type, property_name))
+            output_fp.write("%" + "orig;\n")
+            output_fp.write('    NSLog(@"[<- Getter](%s) %s:' % (str(method.return_type), property_name))
+            output_fp.write('%'+'@", %s);\n' % property_name)
+            output_fp.write('    return %s;\n' % property_name)
+            output_fp.write("}\n")
+        if self.setters:
+            output_fp.write("-(void) s"+etter_name+": ")
+            output_fp.write("(%s)%s {\n" % (method.return_type, property_name))
+            # output_fp.write('    NSLog(@" >>> Enter %s Setter >>>");\n' % property_name)
+            output_fp.write('    NSLog(@"[Setter ->](%s) %s: ' % (str(method.return_type), property_name))
+            printf = "@" if str(method.return_type) not in nslog else nslog[str(method.return_type)]
+            output_fp.write('%'+'%s", %s);\n' % (printf, property_name))
+            output_fp.write('    %'+'orig(%s);\n' % property_name)
+            output_fp.write('}\n')
 
 
 def display_info(msg):
@@ -379,18 +413,24 @@ def compile_regex(expression):
         print(WARN + "Invalid regular expression")
         os._exit(1)
 
+def write_load_hook(output_fp):
+    ''' Log on Dylib load '''
+    output_fp.write("/* Dylib Load Hook */\n")
+    output_fp.write("__attribute__((constructor))\n")
+    output_fp.write("static void _MSInitialize(void) {\n")
+    output_fp.write('    NSLog(@" --- iOS Hooker Tweak Loaded --- ");\n')
+    output_fp.write("}\n\n")
 
-def scan_directory(class_dir, prefix, output_fp, next_step,
-                    unknowns, file_regex, method_regex, verbose):
+def scan_directory(class_dir, prefix, output_fp, args):
     ''' Scan directory and parse header files '''
     path = os.path.abspath(class_dir)
     ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
     if prefix is not None:
         ls = filter(lambda file_name: file_name.startswith(prefix), ls)
-    if not next_step:
+    if not args.next_step:
         ls = filter(lambda file_name: not file_name[:-2] in KNOWN_TYPES, ls)
-    if file_regex is not None:
-        regular_expression = compile_regex(file_regex)
+    if args.file_regex is not None:
+        regular_expression = compile_regex(args.file_regex)
         ls = filter(regular_expression.match, ls)
     print(INFO + "Found %s target file(s) in target directory" % len(ls))
     errors = 0
@@ -399,16 +439,18 @@ def scan_directory(class_dir, prefix, output_fp, next_step,
         display_info("Parsing %d of %d files: %s... " % (
             index + 1, len(ls), header_file[:-2],
         ))
-        if verbose:
+        if args.verbose:
             sys.stdout.write('\n')
         try:
-            objc = ObjcHeader(path + '/' + header_file, unknowns, verbose)
-            objc.save_hooks(output_fp, method_regex)
+            objc = ObjcHeader(path + '/' + header_file, args.unknowns, args.verbose)
+            objc.setters = args.setters
+            objc.getters = args.getters
+            objc.save_hooks(output_fp, args.method_regex)
             total_hooks += objc._hook_count
-        except ValueError:
+        except ValueError as error:
             errors += 1
-            if verbose:
-                print(WARN + "Error: Invalid objective-c header file")
+            if args.verbose:
+                print(WARN + "Error: Invalid objective-c header file; %s" % error)
     display_info("Successfully parsed %d of %d file(s)\n" % (
         len(ls) - errors, len(ls),
     ))
@@ -446,6 +488,11 @@ if __name__ == '__main__':
         action='store_true',
         dest='next_step',
     )
+    parser.add_argument('--load-hook', '-l',
+        help='generate hook when dylib is loaded (default: false)',
+        action='store_true',
+        dest='load_hook',
+    )
     parser.add_argument('--unknown-types', '-u',
         help='create hooks for functions with unknown return types (may cause compiler errors)',
         action='store_false',
@@ -466,18 +513,23 @@ if __name__ == '__main__':
         dest='method_regex',
         default=None,
     )
+    parser.add_argument('--getters', '-g',
+        help='create hooks for @property getters (default: false)',
+        action='store_true',
+    )
+    parser.add_argument('--setters', '-s',
+        help='create hooks for @property setters (default: false)',
+        action='store_true',
+    )
     args = parser.parse_args()
     if os.path.exists(args.target):
         mode = 'a+' if args.append else 'w+'
         output_fp = open(args.output, mode)
+        if args.load_hook:
+            write_load_hook(output_fp)
         if os.path.isdir(args.target):
             scan_directory(
-                args.target, args.prefix, output_fp,
-                next_step=args.next_step,
-                unknowns=args.unknowns,
-                file_regex=args.file_regex,
-                method_regex=args.method_regex,
-                verbose=args.verbose,
+                args.target, args.prefix, output_fp, args
             )
         else:
             try:
@@ -485,10 +537,12 @@ if __name__ == '__main__':
                     unknowns=args.unknowns,
                     verbose=args.verbose
                 )
+                objc.setters = args.setters
+                objc.getters = args.getters
                 objc.save_hooks(output_fp, args.method_regex)
                 print(INFO + "Generated %d function hooks" % objc._hook_count)
-            except ValueError:
-                print(WARN + "Invalid objective-c header file")
+            except ValueError as error:
+                print(WARN + "Invalid objective-c header file; %s" % error)
         output_fp.seek(0)
         length = len(output_fp.read())
         output_fp.close()
