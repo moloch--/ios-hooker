@@ -542,7 +542,7 @@ if __name__ == '__main__':
         args.target = scan_directory(args.target[0], args)
     else:
         args.target = filter(lambda file_name: os.path.exists(file_name), args.target)
-    if 0 <= len(args.target):
+    if 0 < len(args.target):
         parser_headers(args.target, output_fp, args)
         output_fp.seek(0)
         length = len(output_fp.read())
