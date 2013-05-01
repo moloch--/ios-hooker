@@ -369,13 +369,13 @@ class ObjcHeader(object):
                     output_fp.write("}\n")
             output_fp.write("\n")
 
-    def write_etters(self, output_fp, method, setters=True, getters=True):
+    def write_etters(self, output_fp, method):
         '''
         Here we deal with objective-c's dumbass getter/setter methods.
         They may not show up in the class dump but they're magically 
         there.  Use this for @property's
         '''
-        nslog = {"int": "d", "BOOL": "d"}
+        nslog = {"int": "d", "BOOL": "d", "float": "g"}
         property_name = method.method_name
         etter_name = "et" + property_name[0].upper() + property_name[1:]
         if self.getters:
@@ -401,12 +401,12 @@ class ObjcHeader(object):
             output_fp.write('}\n')
 
 
+### Functions
 def display_info(msg):
     ''' Clearline and print message '''
     sys.stdout.write(chr(27) + '[2K')
     sys.stdout.write('\r' + INFO + msg)
     sys.stdout.flush()
-
 
 def compile_regex(expression):
     ''' Ensures we got a valid regex from user '''
@@ -424,18 +424,8 @@ def write_load_hook(output_fp):
     output_fp.write('    NSLog(@" --- iOS Hooker Tweak Loaded --- ");\n')
     output_fp.write("}\n\n")
 
-def scan_directory(class_dir, prefix, output_fp, args):
-    ''' Scan directory and parse header files '''
-    path = os.path.abspath(class_dir)
-    ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
-    if prefix is not None:
-        ls = filter(lambda file_name: file_name.startswith(prefix), ls)
-    if not args.next_step:
-        ls = filter(lambda file_name: not file_name[:-2] in KNOWN_TYPES, ls)
-    if args.file_regex is not None:
-        regular_expression = compile_regex(args.file_regex)
-        ls = filter(regular_expression.match, ls)
-    print(INFO + "Found %s target file(s) in target directory" % len(ls))
+def parser_headers(ls, output_fp, args):
+    ''' Parse list of header files '''
     errors = 0
     total_hooks = 0
     for index, header_file in enumerate(ls):
@@ -445,7 +435,7 @@ def scan_directory(class_dir, prefix, output_fp, args):
         if args.verbose:
             sys.stdout.write('\n')
         try:
-            objc = ObjcHeader(path + '/' + header_file, args.unknowns, args.verbose)
+            objc = ObjcHeader(header_file, args.unknowns, args.verbose)
             objc.setters = args.setters
             objc.getters = args.getters
             objc.save_hooks(output_fp, args.method_regex)
@@ -459,6 +449,22 @@ def scan_directory(class_dir, prefix, output_fp, args):
     ))
     print(INFO + "Generated %d function hooks" % total_hooks)
 
+def scan_directory(class_dir, args):
+    ''' Scan directory and parse header files '''
+    path = os.path.abspath(class_dir)
+    ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
+    if args.prefix is not None:
+        ls = filter(lambda file_name: file_name.startswith(prefix), ls)
+    if not args.next_step:
+        ls = filter(lambda file_name: not file_name[:-2] in KNOWN_TYPES, ls)
+    if args.file_regex is not None:
+        regular_expression = compile_regex(args.file_regex)
+        ls = filter(regular_expression.match, ls)
+    print(INFO + "Found %s target file(s) in target directory" % len(ls))
+    return ls
+
+
+### Main
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Generate hooks for an objc class header file',
@@ -475,6 +481,7 @@ if __name__ == '__main__':
     parser.add_argument('--target', '-t',
         help='file or directory with objc header file(s)',
         dest='target',
+        nargs='*',
         required=True,
     )
     parser.add_argument('--output', '-o',
@@ -527,31 +534,20 @@ if __name__ == '__main__':
         action='store_true',
     )
     args = parser.parse_args()
-    if os.path.exists(args.target):
-        mode = 'a+' if args.append else 'w+'
-        output_fp = open(args.output, mode)
-        if args.load_hook:
-            write_load_hook(output_fp)
-        if os.path.isdir(args.target):
-            scan_directory(
-                args.target, args.prefix, output_fp, args
-            )
-        else:
-            try:
-                objc = ObjcHeader(args.target,
-                    unknowns=args.unknowns,
-                    verbose=args.verbose
-                )
-                objc.setters = args.setters
-                objc.getters = args.getters
-                objc.save_hooks(output_fp, args.method_regex)
-                print(INFO + "Generated %d function hooks" % objc._hook_count)
-            except ValueError as error:
-                print(WARN + "Invalid objective-c header file; %s" % error)
+    mode = 'a+' if args.append else 'w+'
+    output_fp = open(args.output, mode)
+    if args.load_hook:
+        write_load_hook(output_fp)
+    if 1 == len(args.target) and os.path.isdir(args.target[0]):
+        args.target = scan_directory(args.target[0], args)
+    else:
+        args.target = filter(lambda file_name: os.path.exists(file_name), args.target)
+    if 0 <= len(args.target):
+        parser_headers(args.target, output_fp, args)
         output_fp.seek(0)
         length = len(output_fp.read())
         output_fp.close()
         print(INFO + "Hooks written to: "),
         print(args.output + " (%d bytes)" % length)
     else:
-        print(WARN + "File or directory does not exist")
+        print(WARN + "No valid targets found")

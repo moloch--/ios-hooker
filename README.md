@@ -22,7 +22,7 @@ hooker.py --target FooHeader.h
 Usage
 ==============
 ```
-usage: hooker.py [-h] [--version] [--verbose] --target TARGET
+usage: hooker.py [-h] [--version] [--verbose] --target [TARGET [TARGET ...]]
                  [--output OUTPUT] [--append] [--next-step] [--load-hook]
                  [--unknown-types] [--prefix PREFIX] [--file-regex FILE_REGEX]
                  [--method-regex METHOD_REGEX] [--getters] [--setters]
@@ -33,7 +33,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
   --verbose, -v         display verbose output (default: false)
-  --target TARGET, -t TARGET
+  --target [TARGET [TARGET ...]], -t [TARGET [TARGET ...]]
                         file or directory with objc header file(s)
   --output OUTPUT, -o OUTPUT
                         output file with hooks (default: Tweak.xm)
