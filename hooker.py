@@ -69,7 +69,7 @@ KNOWN_TYPES = [
     'NSURLConnectionDelegate','NSURLHandleClient','NSURLProtocolClient','NSUserNotificationCenterDelegate',
     'NSXMLParserDelegate','NSXPCListenerDelegate','NSXPCProxyCreating',
 ]
-
+NSLOG = {"int": "d", "BOOL": "d", "float": "g"}
 
 class ObjcType(object):
     ''' Represents an objective-c type '''
@@ -185,6 +185,7 @@ class ObjcHeader(object):
         self._hook_count = 0
         self.setters = False
         self.getters = False
+        self.log_params = False
 
     @property
     def class_name(self):
@@ -362,12 +363,19 @@ class ObjcHeader(object):
                     self._hook_count += 1
                     output_fp.write("%s {\n" % str(method))
                     output_fp.write("    %" + "log;\n")
+                    if self.log_params:
+                        self.write_params(output_fp, method.arguments)
                     if 'void' in str(method.return_type):
                         output_fp.write("    %" + "orig;\n")
                     else:
                         output_fp.write("    return %" + "orig;\n")
                     output_fp.write("}\n")
             output_fp.write("\n")
+    def write_params(self, output_fp, arguments):
+        for arg in arguments:
+            output_fp.write('    NSLog(@"    [Param]%s -> ' % str(arg))
+            printf = "@" if str(arg.class_type) not in NSLOG else NSLOG[str(arg.class_type)]
+            output_fp.write('%' + printf + '", %s);\n' % arg.component)
 
     def write_etters(self, output_fp, method):
         '''
@@ -375,7 +383,7 @@ class ObjcHeader(object):
         They may not show up in the class dump but they're magically 
         there.  Use this for @property's
         '''
-        nslog = {"int": "d", "BOOL": "d", "float": "g"}
+        
         property_name = method.method_name
         etter_name = "et" + property_name[0].upper() + property_name[1:]
         if self.getters:
@@ -385,7 +393,7 @@ class ObjcHeader(object):
             output_fp.write("    %s %s = " % (method.return_type, property_name))
             output_fp.write("%" + "orig;\n")
             output_fp.write('    NSLog(@"[<- Getter](%s) %s:' % (str(method.return_type), property_name))
-            printf = "@" if str(method.return_type) not in nslog else nslog[str(method.return_type)]
+            printf = "@" if str(method.return_type) not in NSLOG else NSLOG[str(method.return_type)]
             output_fp.write('%'+'%s", %s);\n' % (printf, property_name))
             output_fp.write('    return %s;\n' % property_name)
             output_fp.write("}\n")
@@ -395,7 +403,7 @@ class ObjcHeader(object):
             output_fp.write("(%s)%s {\n" % (method.return_type, property_name))
             # output_fp.write('    NSLog(@" >>> Enter %s Setter >>>");\n' % property_name)
             output_fp.write('    NSLog(@"[Setter ->](%s) %s: ' % (str(method.return_type), property_name))
-            printf = "@" if str(method.return_type) not in nslog else nslog[str(method.return_type)]
+            printf = "@" if str(method.return_type) not in NSLOG else NSLOG[str(method.return_type)]
             output_fp.write('%'+'%s", %s);\n' % (printf, property_name))
             output_fp.write('    %'+'orig(%s);\n' % property_name)
             output_fp.write('}\n')
@@ -438,6 +446,7 @@ def parser_headers(ls, output_fp, args):
             objc = ObjcHeader(header_file, args.unknowns, args.verbose)
             objc.setters = args.setters
             objc.getters = args.getters
+            objc.log_params = args.params
             objc.save_hooks(output_fp, args.method_regex)
             total_hooks += objc._hook_count
         except ValueError as error:
@@ -531,6 +540,11 @@ if __name__ == '__main__':
     parser.add_argument('--setters', '-s',
         help='create hooks for @property setters (default: false)',
         dest='setters',
+        action='store_true',
+    )
+    parser.add_argument('--params', '-r',
+        help='log function parameter values (default: false)',
+        dest='params',
         action='store_true',
     )
     args = parser.parse_args()
