@@ -69,7 +69,7 @@ KNOWN_TYPES = [
     'NSURLConnectionDelegate','NSURLHandleClient','NSURLProtocolClient','NSUserNotificationCenterDelegate',
     'NSXMLParserDelegate','NSXPCListenerDelegate','NSXPCProxyCreating',
 ]
-NSLOG = {"int": "d", "BOOL": "d", "float": "g"}
+NSLOG = {"int": "d", "unsigned": "d", "BOOL": "d", "float": "g"}
 
 class ObjcType(object):
     ''' Represents an objective-c type '''
@@ -186,6 +186,7 @@ class ObjcHeader(object):
         self.setters = False
         self.getters = False
         self.log_params = False
+        self.debug = False
 
     @property
     def class_name(self):
@@ -382,17 +383,18 @@ class ObjcHeader(object):
         Here we deal with objective-c's dumbass getter/setter methods.
         They may not show up in the class dump but they're magically 
         there.  Use this for @property's
-        '''
-        
+        ''' 
         property_name = method.method_name
         etter_name = "et" + property_name[0].upper() + property_name[1:]
         if self.getters:
             self._hook_count += 1
             output_fp.write("-(%s) " % method.return_type)
             output_fp.write("g%s {\n" % etter_name)
+            if self.debug:
+                output_fp.write('    NSLog(@" >>> Enter %s Getter >>>");\n' % property_name)
             output_fp.write("    %s %s = " % (method.return_type, property_name))
             output_fp.write("%" + "orig;\n")
-            output_fp.write('    NSLog(@"[<- Getter](%s) %s:' % (str(method.return_type), property_name))
+            output_fp.write('    NSLog(@"[<- Getter](%s) %s: ' % (str(method.return_type), property_name))
             printf = "@" if str(method.return_type) not in NSLOG else NSLOG[str(method.return_type)]
             output_fp.write('%'+'%s", %s);\n' % (printf, property_name))
             output_fp.write('    return %s;\n' % property_name)
@@ -401,7 +403,8 @@ class ObjcHeader(object):
             self._hook_count += 1
             output_fp.write("-(void) s"+etter_name+": ")
             output_fp.write("(%s)%s {\n" % (method.return_type, property_name))
-            # output_fp.write('    NSLog(@" >>> Enter %s Setter >>>");\n' % property_name)
+            if self.debug:
+                output_fp.write('    NSLog(@" >>> Enter %s Setter >>>");\n' % property_name)
             output_fp.write('    NSLog(@"[Setter ->](%s) %s: ' % (str(method.return_type), property_name))
             printf = "@" if str(method.return_type) not in NSLOG else NSLOG[str(method.return_type)]
             output_fp.write('%'+'%s", %s);\n' % (printf, property_name))
@@ -447,6 +450,7 @@ def parser_headers(ls, output_fp, args):
             objc.setters = args.setters
             objc.getters = args.getters
             objc.log_params = args.params
+            objc.debug = args.debug
             objc.save_hooks(output_fp, args.method_regex)
             total_hooks += objc._hook_count
         except ValueError as error:
@@ -545,6 +549,11 @@ if __name__ == '__main__':
     parser.add_argument('--params', '-r',
         help='log function parameter values (default: false)',
         dest='params',
+        action='store_true',
+    )
+    parser.add_argument('--debug',
+        help='create debug logging messages for getters/setters (default: false)',
+        dest='debug',
         action='store_true',
     )
     args = parser.parse_args()
