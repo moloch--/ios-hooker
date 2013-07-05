@@ -460,14 +460,12 @@ def parser_headers(ls, output_fp, args):
     display_info("Successfully parsed %d of %d file(s)\n" % (
         len(ls) - errors, len(ls),
     ))
-    print(INFO + "Generated %d function hooks" % total_hooks)
+    print(INFO + "Generated %d function hook(s)" % total_hooks)
 
 def scan_directory(class_dir, args):
     ''' Scan directory and parse header files '''
     path = os.path.abspath(class_dir)
     ls = filter(lambda file_name: file_name.endswith('.h'), os.listdir(path))
-    if args.prefix is not None:
-        ls = filter(lambda file_name: file_name.startswith(prefix), ls)
     if not args.next_step:
         ls = filter(lambda file_name: not file_name[:-2] in KNOWN_TYPES, ls)
     if args.file_regex is not None:
@@ -521,11 +519,6 @@ if __name__ == '__main__':
         action='store_false',
         dest='unknowns',
     )
-    parser.add_argument('--prefix', '-p',
-        help='only hook classes with a given file name prefix (only valid with directory)',
-        dest='prefix',
-        default=None,
-    )
     parser.add_argument('--file-regex', '-f',
         help='only hook classes with file names that match a given regex (only valid with directory)',
         dest='file_regex',
@@ -546,7 +539,7 @@ if __name__ == '__main__':
         dest='setters',
         action='store_true',
     )
-    parser.add_argument('--params', '-r',
+    parser.add_argument('--params', '-p',
         help='log function parameter values (default: false)',
         dest='params',
         action='store_true',
