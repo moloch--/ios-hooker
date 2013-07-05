@@ -15,7 +15,12 @@ hooker.py --target ./header_files -g -s -l
 
 or target a single class file:
 ```
-ios-hooker.py --target FooHeader.h
+ios-hooker.py --target FooHeader.h -g -s -l
+```
+
+or multiple files:
+```
+ios-hooker.py --target FooHeader.h BarHeader.h -g -s -l
 ```
 
 
