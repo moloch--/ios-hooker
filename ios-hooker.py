@@ -5,7 +5,8 @@
 # ===================================================
 #
 #  About: Hacky Objective-c parser for generating
-#  function hooks automagically.
+#  function hooks automagically.  Should work with
+#  any current version of Python 2.x or 3.x
 #
 
 import os
@@ -70,6 +71,7 @@ KNOWN_TYPES = [
     'NSXMLParserDelegate','NSXPCListenerDelegate','NSXPCProxyCreating',
 ]
 NSLOG = {"int": "d", "unsigned": "d", "BOOL": "d", "float": "g"}
+
 
 class ObjcType(object):
     ''' Represents an objective-c type '''
@@ -185,7 +187,7 @@ class ObjcHeader(object):
         self._hook_count = 0
         self.setters = False
         self.getters = False
-        self.log_params = False
+        self.params = False
         self.debug = False
 
     @property
@@ -364,7 +366,7 @@ class ObjcHeader(object):
                     self._hook_count += 1
                     output_fp.write("%s {\n" % str(method))
                     output_fp.write("    %" + "log;\n")
-                    if self.log_params:
+                    if self.params:
                         self.write_params(output_fp, method.arguments)
                     if 'void' in str(method.return_type):
                         output_fp.write("    %" + "orig;\n")
@@ -372,6 +374,7 @@ class ObjcHeader(object):
                         output_fp.write("    return %" + "orig;\n")
                     output_fp.write("}\n")
             output_fp.write("\n")
+            
     def write_params(self, output_fp, arguments):
         for arg in arguments:
             output_fp.write('    NSLog(@"    [Param]%s -> ' % str(arg))
@@ -427,12 +430,22 @@ def compile_regex(expression):
         print(WARN + "Invalid regular expression")
         os._exit(1)
 
+def write_includes(output_fp):
+    ''' Add basic includes to the tweak '''
+    output_fp.write('#import <CoreFoundation/CoreFoundation.h>\n')
+    output_fp.write('#import <Foundation/Foundation.h>\n')
+    output_fp.write('#import <Security/Security.h>\n')
+    output_fp.write('#import <Security/SecCertificate.h>\n')
+    output_fp.write('\n')
+    output_fp.write('#import "substrate.h"\n')
+    output_fp.write('\n\n')
+
 def write_load_hook(output_fp):
     ''' Log on Dylib load '''
     output_fp.write("/* Dylib Load Hook */\n")
     output_fp.write("__attribute__((constructor))\n")
     output_fp.write("static void _MSInitialize(void) {\n")
-    output_fp.write('    NSLog(@" --- iOS Hooker Tweak Loaded --- ");\n')
+    output_fp.write('    NSLog(@" --- iOS Hooker Loaded: %ss --- ", __FILE__);\n' % "%")
     output_fp.write("}\n\n")
 
 def parser_headers(ls, output_fp, args):
@@ -449,7 +462,7 @@ def parser_headers(ls, output_fp, args):
             objc = ObjcHeader(header_file, args.unknowns, args.verbose)
             objc.setters = args.setters
             objc.getters = args.getters
-            objc.log_params = args.params
+            objc.params = args.params
             objc.debug = args.debug
             objc.save_hooks(output_fp, args.method_regex)
             total_hooks += objc._hook_count
@@ -482,7 +495,7 @@ if __name__ == '__main__':
     )
     parser.add_argument('--version',
         action='version',
-        version='%(prog)s v0.1'
+        version='%(prog)s v0.1.1'
     )
     parser.add_argument('--verbose', '-v',
         help='display verbose output (default: false)',
@@ -508,6 +521,11 @@ if __name__ == '__main__':
         help='parse and hook NS class files (default: false)',
         action='store_true',
         dest='next_step',
+    )
+    parser.add_argument('--includes', '-i',
+        help='add basic #include files to tweak (default: false)',
+        dest='includes',
+        action='store_true',
     )
     parser.add_argument('--load-hook', '-l',
         help='generate hook when dylib is loaded (default: false)',
@@ -552,7 +570,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
     mode = 'a+' if args.append else 'w+'
     output_fp = open(args.output, mode)
+    if args.includes:
+        if args.verbose:
+            print(INFO + "Adding basic #includes to tweak file")
+        write_includes(output_fp)
     if args.load_hook:
+        if args.verbose:
+            print(INFO + "Adding load hook to tweak file")
         write_load_hook(output_fp)
     if 1 == len(args.target) and os.path.isdir(args.target[0]):
         args.target = scan_directory(args.target[0], args)
