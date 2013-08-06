@@ -25,7 +25,7 @@ else:
 
 # Makes for easy compiling; this can of course be optionally disabled
 KNOWN_TYPES = [
-    'id', 'NSObject', 'void', 'char', 'int', 'unsigned', 'double', 'float', 'long', 'BOOL',
+    'id', 'NSObject', 'void', 'char', 'int', 'unsigned', 'double', 'float', 'long', 'bool', 'BOOL',
     'NSAffineTransform','NSAppleEventDescriptor','NSAppleEventManager','NSAppleScript',
     'NSArchiver','NSArray','NSAssertionHandler','NSAttributedString','NSAutoreleasePool',
     'NSBlockOperation','NSBundle','NSCache','NSCachedURLResponse','NSCalendar','NSCharacterSet',
@@ -341,12 +341,12 @@ class ObjcHeader(object):
     def __save__(self, output_fp, properties, class_methods, instance_methods):
         ''' Save hooks to output file '''
         self.write_header(output_fp)
-        output_fp.write("%" + "hook %s\n\n" % self.class_name)
+        output_fp.write("%"+"hook %s\n\n" % self.class_name)
         if self.getters or self.setters:
             self.write_methods(output_fp, properties, etters=True, comment="Properties")
         self.write_methods(output_fp, class_methods, comment="Class Methods")
         self.write_methods(output_fp, instance_methods, comment="Instance Methods")
-        output_fp.write("%" + "end\n\n\n")
+        output_fp.write("%"+"end\n\n\n")
 
     def write_header(self, output_fp):
         ''' Write comment header to output file '''
@@ -372,7 +372,7 @@ class ObjcHeader(object):
                         output_fp.write("    %" + "orig;\n")
                     else:
                         output_fp.write("    return %" + "orig;\n")
-                    output_fp.write("}\n")
+                    output_fp.write("}\n\n")
             output_fp.write("\n")
             
     def write_params(self, output_fp, arguments):
@@ -413,6 +413,7 @@ class ObjcHeader(object):
             output_fp.write('%'+'%s", %s);\n' % (printf, property_name))
             output_fp.write('    %'+'orig(%s);\n' % property_name)
             output_fp.write('}\n')
+        output_fp.write('\n')
 
 
 ### Functions
@@ -442,9 +443,8 @@ def write_includes(output_fp):
 
 def write_load_hook(output_fp):
     ''' Log on Dylib load '''
-    output_fp.write("/* Dylib Load Hook */\n")
-    output_fp.write("__attribute__((constructor))\n")
-    output_fp.write("static void _MSInitialize(void) {\n")
+    output_fp.write("/* Dylib Constructor */\n")
+    output_fp.write("%"+"ctor {\n")
     output_fp.write('    NSLog(@" --- iOS Hooker Loaded: %ss --- ", __FILE__);\n' % "%")
     output_fp.write("}\n\n")
 
